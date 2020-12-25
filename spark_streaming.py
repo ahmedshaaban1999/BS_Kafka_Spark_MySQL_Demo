@@ -5,17 +5,14 @@ from pyspark.sql.types import MapType, StringType, ArrayType, FloatType
 import pickle
 
 def foreach_jdbc_writer(df,epoch_id):
-    print(df.count())
-    if (df.count() > 0):
-        print('pushed data')
-        df.write.\
-        jdbc(url="jdbc:mysql://localhost/world",table="amazon_products",mode='append',properties={"driver":"com.mysql.cj.jdbc.Driver","user":"ahmed"})
+    df.write.\
+    jdbc(url="jdbc:mysql://localhost/world",table="amazon_products",mode='append',properties={"driver":"com.mysql.cj.jdbc.Driver","user":"ahmed"})
 
 spark = SparkSession.builder.master('local[2]').appName('StreamingDemo').getOrCreate()
 
 df = spark.readStream.format('kafka')\
     .option('kafka.bootstrap.servers','localhost:9092')\
-    .option('subscribe','test')\
+    .option('subscribe','amazon')\
     .load()
 
 deser = udf(lambda x: pickle.loads(x) ,MapType(StringType(),StringType()))
@@ -23,7 +20,8 @@ deser = udf(lambda x: pickle.loads(x) ,MapType(StringType(),StringType()))
 deserlizedDF = df.withColumn('map',deser(df['value']))
 parsedDF = deserlizedDF.withColumn('title',element_at('map','productTitle'))\
     .withColumn('Categories',element_at('map','productCategories'))\
-    .withColumn('Rating',element_at('map','productRating')).withColumn('Description',element_at('map','productDescription'))\
+    .withColumn('Rating',element_at('map','productRating'))\
+    .withColumn('Description',element_at('map','productDescription'))\
     .withColumn('Prices',element_at('map','productPrices'))\
     .withColumn('Min_Price',array_min(split(element_at('map','productPrices'),r'#*\$').cast(ArrayType(FloatType()))))\
     .withColumn('Max_Price',array_max(split(element_at('map','productPrices'),r'#*\$').cast(ArrayType(FloatType()))))

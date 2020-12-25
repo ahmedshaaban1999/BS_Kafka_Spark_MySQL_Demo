@@ -15,7 +15,6 @@ def GetPrices(soup):
     try:
         if soup.find('div',attrs={'id':re.compile('olp-upd-new')}) == None:
             if soup.find('div',attrs={'id':'price'}) == None:
-                print(soup.prettify())
                 exit
             return '#'.join([soup.find('div',attrs={'id':'price'}).find('span',attrs={'id':'priceblock_ourprice'}).string])
 
@@ -45,7 +44,7 @@ def writeToFile(outputFile,product):
     outputFile.write(line)
 
 def writeToKafka(producer,product):
-    producer.send('test', pickle.dumps(product))    
+    producer.send('amazon', pickle.dumps(product))    
 
 def flush(outputFile,producer):
     outputFile.flush()
@@ -64,12 +63,16 @@ def main():
     while any(links):
         print('proccessed ' + str(counter) + ' . links in list ' + str(len(links)))
 
+        #To make the scrapper stop after some pages
         if counter > 50:
             break
+
+        #wrap everything in a try/except as I didn't spent that much time investigating amazon's frontend style guide
         try:
             link = links.pop(0)
-            #htmlFile=DownloadPage(link)
-            htmlFile = open('amazon.com_Sony-MDRZX110NC-Noise-Cancelling-Headphones.html','r')
+            htmlFile=DownloadPage(link)
+            #For testing just download a page using a browser and read it
+            #htmlFile = open('amazon.com_Sony-MDRZX110NC-Noise-Cancelling-Headphones.html','r')
             soup = BeautifulSoup(htmlFile, 'lxml')
             
             product = {}
@@ -80,13 +83,14 @@ def main():
             product['productRating'] = soup.find(attrs={'id':'averageCustomerReviews'}).find("span", attrs={'class':'a-icon-alt'}).string.strip().split()[0]
             product['productDescription'] = soup.find('div',attrs={'id':'productDescription'}).find('p').string.strip()
 
-            #links.extend(GetProducts(soup))
+            links.extend(GetProducts(soup))
 
+            #why a file ?. It might be usefull for you later when you want to test on sending many products to kafka and you already have hit your crawling limit
             writeToFile(outputFile,product)
             writeToKafka(producer,product)
 
             counter = counter + 1
-            break
+
         except Exception as e:
             print('error in link : '+link)
             print(e)
